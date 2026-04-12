@@ -1,0 +1,9 @@
+20:44:41 DEBUG : Logs will be stored at 'C:/Users/djdan/OneDrive/Documents/CSUN/520a/Matrix/Matrix_dc/Matrix_vitis_dc/IDE.log'.
+20:44:46 INFO  : Launching XSCT server: xsct.bat -n  -interactive C:\Users\djdan\OneDrive\Documents\CSUN\520a\Matrix\Matrix_dc\Matrix_vitis_dc\temp_xsdb_launch_script.tcl
+20:44:47 INFO  : Registering command handlers for Vitis TCF services
+20:44:47 INFO  : Platform repository initialization has completed.
+20:44:49 INFO  : XSCT server has started successfully.
+20:44:50 INFO  : plnx-install-location is set to ''
+20:44:50 INFO  : Successfully done setting XSCT server connection channel  
+20:44:50 INFO  : Successfully done query RDI_DATADIR 
+20:44:50 INFO  : Successfully done setting workspace for the tool. 

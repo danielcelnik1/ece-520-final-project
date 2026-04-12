@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="ASCII"?>
+<sdkproject:SdkProject xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:sdkproject="http://www.xilinx.com/sdkproject" name="Matrix_app_dc" location="C:/Users/djdan/OneDrive/Documents/CSUN/520a/Design_Proj1/design1_soc_dc/design1_vitis/Matrix_app_dc" platform="C:/Users/djdan/OneDrive/Documents/CSUN/520a/Design_Proj1/design1_soc_dc/design1_vitis/Matrix_vitis_dc/export/Matrix_vitis_dc/Matrix_vitis_dc.xpfm" platformUID="xilinx:zybo-z7-10::0.0(custom)" systemProject="Matrix_app_dc_system" sysConfig="Matrix_vitis_dc" runtime="C/C++" cpu="standalone_domain" cpuInstance="ps7_cortexa9_0" os="standalone" mssSignature="bee21d8cc3ada85de0480684d494b33b">
+  <configuration name="Debug" id="xilinx.gnu.armv7.exe.debug.2368813">
+    <configBuildOptions xsi:type="sdkproject:SdkOptions"/>
+    <lastBuildOptions xsi:type="sdkproject:SdkOptions"/>
+  </configuration>
+  <configuration name="Release" id="xilinx.gnu.armv7.exe.release.1931382960" dirty="true">
+    <configBuildOptions xsi:type="sdkproject:SdkOptions"/>
+  </configuration>
+  <template appTemplateName="hello_world"/>
+</sdkproject:SdkProject>

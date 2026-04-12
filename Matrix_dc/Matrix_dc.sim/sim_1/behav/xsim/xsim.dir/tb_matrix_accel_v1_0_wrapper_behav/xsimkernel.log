@@ -1,0 +1,7 @@
+Running: xsim.dir/tb_matrix_accel_v1_0_wrapper_behav/xsimk.exe -simmode gui -wdb tb_matrix_accel_v1_0_wrapper_behav.wdb -simrunnum 0 -socket 59655
+Design successfully loaded
+Design Loading Memory Usage: 10116 KB (Peak: 10116 KB)
+Design Loading CPU Usage: 62 ms
+Simulation completed
+Simulation Memory Usage: 11520 KB (Peak: 11520 KB)
+Simulation CPU Usage: 77 ms

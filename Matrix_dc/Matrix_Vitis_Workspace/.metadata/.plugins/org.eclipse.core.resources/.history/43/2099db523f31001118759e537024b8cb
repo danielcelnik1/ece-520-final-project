@@ -1,0 +1,704 @@
+#include <stdio.h>
+#include <stdint.h>
+#include "platform.h"
+#include "xparameters.h"
+#include "xparameters_ps.h"
+#include "xil_printf.h"
+#include "xil_io.h"
+#include "xscugic.h"
+#include "xil_exception.h"
+#include "xstatus.h"
+
+/* =========================================================
+ * Base Addresses
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ * Replace these with your actual xparameters values if needed.
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ * ========================================================= */
+#define MATRIX_ACCEL_BASEADDR   (0x43C00000)
+#define BRAM_A_BASEADDR         (0x40000000)
+#define BRAM_B_BASEADDR         (0x42000000)
+#define BRAM_C_BASEADDR         (0x44000000)
+
+/* =========================================================
+ * Interrupt Config
+ * Replace interrupt macro if your xparameters uses a different name.
+ * Common pattern is something like:
+ * XPAR_FABRIC_MATRIX_ACCEL_0_IRQ_INTR
+ * ========================================================= */
+#define INTC_DEVICE_ID          XPAR_SCUGIC_SINGLE_DEVICE_ID
+#define MATRIX_ACCEL_INTR_ID    XPAR_FABRIC_MATRIX_ACCEL_0_IRQ_INTR
+
+/* =========================================================
+ * Accelerator Register Map
+ * 0x00 CONTROL
+ *      bit0 = start
+ *      bit2 = irq_enable
+ *      bit3 = soft_reset
+ * 0x04 SIZE
+ * 0x08 CYCLE_COUNT
+ * 0x0C STATUS
+ *      bit0 = busy
+ *      bit1 = done
+ *      bit7:4 = state
+ * ========================================================= */
+#define REG_CONTROL             0x00
+#define REG_SIZE                0x04
+#define REG_CYCLE_COUNT         0x08
+#define REG_STATUS              0x0C
+
+#define CTRL_START_MASK         0x00000001
+#define CTRL_IRQ_EN_MASK        0x00000004
+#define CTRL_SOFT_RST_MASK      0x00000008
+
+#define STATUS_BUSY_MASK        0x00000001
+#define STATUS_DONE_MASK        0x00000002
+#define STATUS_STATE_MASK       0x000000F0
+
+#define MAX_N                   16
+#define TIMEOUT_COUNT           100000000U
+
+static XScuGic IntcInst;
+static volatile uint32_t g_interrupt_count = 0;
+static volatile uint32_t g_interrupt_received = 0;
+
+/* =========================================================
+ * Test Matrices / Buffers
+ * ========================================================= */
+static int32_t g_matrix_a[MAX_N * MAX_N];
+static int32_t g_matrix_b[MAX_N * MAX_N];
+static int32_t g_matrix_c_hw[MAX_N * MAX_N];
+static int32_t g_matrix_c_sw[MAX_N * MAX_N];
+static uint32_t g_current_n = 4;
+
+/* =========================================================
+ * Low-level Register / Memory Access
+ * ========================================================= */
+static inline void Accel_WriteReg(uint32_t offset, uint32_t value)
+{
+    Xil_Out32(MATRIX_ACCEL_BASEADDR + offset, value);
+}
+
+static inline uint32_t Accel_ReadReg(uint32_t offset)
+{
+    return Xil_In32(MATRIX_ACCEL_BASEADDR + offset);
+}
+
+static inline void BramA_WriteWord(uint32_t index, uint32_t value)
+{
+    Xil_Out32(BRAM_A_BASEADDR + (index * 4U), value);
+}
+
+static inline void BramB_WriteWord(uint32_t index, uint32_t value)
+{
+    Xil_Out32(BRAM_B_BASEADDR + (index * 4U), value);
+}
+
+static inline uint32_t BramC_ReadWord(uint32_t index)
+{
+    return Xil_In32(BRAM_C_BASEADDR + (index * 4U));
+}
+
+/* =========================================================
+ * Accelerator Helper Functions
+ * ========================================================= */
+static void MatrixAccel_SoftReset(void)
+{
+    Accel_WriteReg(REG_CONTROL, CTRL_SOFT_RST_MASK);
+    Accel_WriteReg(REG_CONTROL, 0x00000000);
+}
+
+static void MatrixAccel_SetSize(uint32_t n)
+{
+    Accel_WriteReg(REG_SIZE, n);
+}
+
+static void MatrixAccel_EnableInterrupt(void)
+{
+    uint32_t ctrl = Accel_ReadReg(REG_CONTROL);
+    ctrl |= CTRL_IRQ_EN_MASK;
+    Accel_WriteReg(REG_CONTROL, ctrl);
+}
+
+static void MatrixAccel_DisableInterrupt(void)
+{
+    uint32_t ctrl = Accel_ReadReg(REG_CONTROL);
+    ctrl &= ~CTRL_IRQ_EN_MASK;
+    Accel_WriteReg(REG_CONTROL, ctrl);
+}
+
+static void MatrixAccel_Start(void)
+{
+    uint32_t ctrl = Accel_ReadReg(REG_CONTROL);
+
+    /* preserve irq_enable, clear soft_reset */
+    ctrl &= CTRL_IRQ_EN_MASK;
+    ctrl |= CTRL_START_MASK;
+
+    Accel_WriteReg(REG_CONTROL, ctrl);
+}
+
+static uint32_t MatrixAccel_IsBusy(void)
+{
+    return (Accel_ReadReg(REG_STATUS) & STATUS_BUSY_MASK) ? 1U : 0U;
+}
+
+static uint32_t MatrixAccel_IsDone(void)
+{
+    return (Accel_ReadReg(REG_STATUS) & STATUS_DONE_MASK) ? 1U : 0U;
+}
+
+static uint32_t MatrixAccel_ReadCycleCount(void)
+{
+    return Accel_ReadReg(REG_CYCLE_COUNT);
+}
+
+static uint32_t MatrixAccel_ReadStatus(void)
+{
+    return Accel_ReadReg(REG_STATUS);
+}
+
+/* =========================================================
+ * Matrix / BRAM Functions
+ * ========================================================= */
+static void LoadDefaultMatrices(uint32_t n)
+{
+    uint32_t i, j;
+
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < n; j++)
+        {
+            g_matrix_a[i * n + j] = (int32_t)(i * n + j + 1);
+            g_matrix_b[i * n + j] = (int32_t)(n * n - (i * n + j));
+        }
+    }
+}
+
+static void ClearOutputBuffers(uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n * n; i++)
+    {
+        g_matrix_c_hw[i] = 0;
+        g_matrix_c_sw[i] = 0;
+    }
+}
+
+static void WriteMatricesToBram(uint32_t n)
+{
+    uint32_t i;
+    uint32_t count = n * n;
+
+    for (i = 0; i < count; i++)
+    {
+        BramA_WriteWord(i, (uint32_t)g_matrix_a[i]);
+        BramB_WriteWord(i, (uint32_t)g_matrix_b[i]);
+    }
+}
+
+static void ReadMatrixCFromBram(uint32_t n)
+{
+    uint32_t i;
+    uint32_t count = n * n;
+
+    for (i = 0; i < count; i++)
+    {
+        g_matrix_c_hw[i] = (int32_t)BramC_ReadWord(i);
+    }
+}
+
+static void ComputeSoftwareReference(uint32_t n)
+{
+    uint32_t i, j, k;
+    int32_t sum;
+
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < n; j++)
+        {
+            sum = 0;
+            for (k = 0; k < n; k++)
+            {
+                sum += g_matrix_a[i * n + k] * g_matrix_b[k * n + j];
+            }
+            g_matrix_c_sw[i * n + j] = sum;
+        }
+    }
+}
+
+static int CompareHwAndSw(uint32_t n)
+{
+    uint32_t i;
+    uint32_t count = n * n;
+    int errors = 0;
+
+    for (i = 0; i < count; i++)
+    {
+        if (g_matrix_c_hw[i] != g_matrix_c_sw[i])
+        {
+            xil_printf("Mismatch at index %d: HW=%d SW=%d\r\n",
+                       i, g_matrix_c_hw[i], g_matrix_c_sw[i]);
+            errors++;
+        }
+    }
+
+    if (errors == 0)
+    {
+        xil_printf("HW and SW results match.\r\n");
+    }
+    else
+    {
+        xil_printf("Compare failed. Errors = %d\r\n", errors);
+    }
+
+    return errors;
+}
+
+static void PrintMatrix(const char *name, int32_t *mat, uint32_t n)
+{
+    uint32_t i, j;
+
+    xil_printf("%s =\r\n", name);
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < n; j++)
+        {
+            xil_printf("%6d ", mat[i * n + j]);
+        }
+        xil_printf("\r\n");
+    }
+    xil_printf("\r\n");
+}
+
+static void PrintRegisters(void)
+{
+    xil_printf("[Offset 0x%02X] CONTROL     = 0x%08X\r\n", REG_CONTROL,     (uint32_t)Accel_ReadReg(REG_CONTROL));
+    xil_printf("[Offset 0x%02X] SIZE        = 0x%08X\r\n", REG_SIZE,        (uint32_t)Accel_ReadReg(REG_SIZE));
+    xil_printf("[Offset 0x%02X] CYCLE_COUNT = 0x%08X\r\n", REG_CYCLE_COUNT, (uint32_t)Accel_ReadReg(REG_CYCLE_COUNT));
+    xil_printf("[Offset 0x%02X] STATUS      = 0x%08X\r\n", REG_STATUS,      (uint32_t)Accel_ReadReg(REG_STATUS));
+}
+
+static void PrintBaseAddresses(void)
+{
+    xil_printf("MATRIX_ACCEL_BASEADDR = 0x%08X\r\n", (uint32_t)MATRIX_ACCEL_BASEADDR);
+    xil_printf("BRAM_A_BASEADDR       = 0x%08X\r\n", (uint32_t)BRAM_A_BASEADDR);
+    xil_printf("BRAM_B_BASEADDR       = 0x%08X\r\n", (uint32_t)BRAM_B_BASEADDR);
+    xil_printf("BRAM_C_BASEADDR       = 0x%08X\r\n", (uint32_t)BRAM_C_BASEADDR);
+    xil_printf("MATRIX_ACCEL_INTR_ID  = %d\r\n\r\n", (uint32_t)MATRIX_ACCEL_INTR_ID);
+}
+
+/* =========================================================
+ * Interrupt Functions
+ * ========================================================= */
+static void MatrixAccel_Isr(void *CallbackRef)
+{
+    (void)CallbackRef;
+
+    g_interrupt_count++;
+    g_interrupt_received = 1;
+
+    xil_printf("ISR: Matrix accelerator interrupt received. Count = %d\r\n", g_interrupt_count);
+    xil_printf("ISR: STATUS = 0x%08X, CYCLE_COUNT = %d\r\n\r\n",
+               (uint32_t)MatrixAccel_ReadStatus(),
+               (uint32_t)MatrixAccel_ReadCycleCount());
+}
+
+static int SetupInterruptSystem(XScuGic *IntcInstancePtr)
+{
+    int status;
+    XScuGic_Config *IntcConfig;
+
+    IntcConfig = XScuGic_LookupConfig(INTC_DEVICE_ID);
+    if (IntcConfig == NULL)
+    {
+        return XST_FAILURE;
+    }
+
+    status = XScuGic_CfgInitialize(IntcInstancePtr, IntcConfig, IntcConfig->CpuBaseAddress);
+    if (status != XST_SUCCESS)
+    {
+        return XST_FAILURE;
+    }
+
+    XScuGic_SetPriorityTriggerType(IntcInstancePtr, MATRIX_ACCEL_INTR_ID, 0xA0, 0x3);
+
+    status = XScuGic_Connect(IntcInstancePtr,
+                             MATRIX_ACCEL_INTR_ID,
+                             (Xil_InterruptHandler)MatrixAccel_Isr,
+                             NULL);
+    if (status != XST_SUCCESS)
+    {
+        return XST_FAILURE;
+    }
+
+    XScuGic_Enable(IntcInstancePtr, MATRIX_ACCEL_INTR_ID);
+
+    Xil_ExceptionInit();
+    Xil_ExceptionRegisterHandler(XIL_EXCEPTION_ID_INT,
+                                 (Xil_ExceptionHandler)XScuGic_InterruptHandler,
+                                 IntcInstancePtr);
+    Xil_ExceptionEnable();
+
+    return XST_SUCCESS;
+}
+
+/* =========================================================
+ * Run Functions
+ * ========================================================= */
+static int RunHardwarePolling(uint32_t n)
+{
+    volatile uint32_t timeout;
+
+    xil_printf("Running hardware accelerator using polling...\r\n");
+
+    g_interrupt_received = 0;
+
+    MatrixAccel_SetSize(n);
+    MatrixAccel_Start();
+
+    timeout = TIMEOUT_COUNT;
+    while ((MatrixAccel_IsDone() == 0U) && (timeout > 0U))
+    {
+        timeout--;
+    }
+
+    if (timeout == 0U)
+    {
+        xil_printf("ERROR: Timed out waiting for DONE.\r\n");
+        return -1;
+    }
+
+    xil_printf("Hardware run complete. CYCLE_COUNT = %d\r\n\r\n",
+               (uint32_t)MatrixAccel_ReadCycleCount());
+
+    return 0;
+}
+
+static int RunHardwareInterrupt(uint32_t n)
+{
+    volatile uint32_t timeout;
+
+    xil_printf("Running hardware accelerator using interrupt...\r\n");
+
+    g_interrupt_received = 0;
+
+    MatrixAccel_EnableInterrupt();
+    MatrixAccel_SetSize(n);
+    MatrixAccel_Start();
+
+    timeout = TIMEOUT_COUNT;
+    while ((g_interrupt_received == 0U) && (timeout > 0U))
+    {
+        timeout--;
+    }
+
+    if (timeout == 0U)
+    {
+        xil_printf("ERROR: Timed out waiting for interrupt.\r\n");
+        return -1;
+    }
+
+    xil_printf("Interrupt-driven hardware run complete. CYCLE_COUNT = %d\r\n\r\n",
+               (uint32_t)MatrixAccel_ReadCycleCount());
+
+    return 0;
+}
+
+static void FullMatrixTestPolling(uint32_t n)
+{
+    int status;
+
+    xil_printf("\r\n=== Full Matrix Test (Polling) ===\r\n");
+
+    ClearOutputBuffers(n);
+    LoadDefaultMatrices(n);
+    ComputeSoftwareReference(n);
+    WriteMatricesToBram(n);
+
+    status = RunHardwarePolling(n);
+    if (status != 0)
+    {
+        return;
+    }
+
+    ReadMatrixCFromBram(n);
+    CompareHwAndSw(n);
+    xil_printf("\r\n");
+}
+
+static void FullMatrixTestInterrupt(uint32_t n)
+{
+    int status;
+
+    xil_printf("\r\n=== Full Matrix Test (Interrupt) ===\r\n");
+
+    ClearOutputBuffers(n);
+    LoadDefaultMatrices(n);
+    ComputeSoftwareReference(n);
+    WriteMatricesToBram(n);
+
+    status = RunHardwareInterrupt(n);
+    if (status != 0)
+    {
+        return;
+    }
+
+    ReadMatrixCFromBram(n);
+    CompareHwAndSw(n);
+    xil_printf("\r\n");
+}
+
+/* =========================================================
+ * Menu
+ * ========================================================= */
+static void PrintMenu(void)
+{
+    xil_printf("\n===== Matrix Accelerator Menu (Daniel Celnik) =====\n");
+    xil_printf("1 - Load default matrices into software buffers\n");
+    xil_printf("2 - Write matrices A and B into BRAM\n");
+    xil_printf("3 - Compute software reference\n");
+    xil_printf("4 - Run hardware accelerator using polling\n");
+    xil_printf("5 - Read matrix C from BRAM and compare HW vs SW\n");
+    xil_printf("6 - Print accelerator registers\n");
+    xil_printf("7 - Print matrices A, B, C_hw, C_sw\n");
+    xil_printf("8 - Run full matrix test using polling\n");
+    xil_printf("9 - Enable interrupt mode and run full matrix test\n");
+    xil_printf("a - Soft reset accelerator\n");
+    xil_printf("b - Disable accelerator interrupt enable bit\n");
+    xil_printf("c - Change matrix size (4, 8, 16)\n");
+    xil_printf("d - Print base addresses and interrupt info\n");
+    xil_printf("h - Display the menu\n");
+    xil_printf("===============================================\n\n");
+}
+
+/* =========================================================
+ * Main
+ * ========================================================= */
+int main(void)
+{
+    int status;
+    char cmd;
+
+    init_platform();
+
+    xil_printf("Start of Matrix Accelerator Test\r\n\n");
+
+    PrintBaseAddresses();
+
+    status = SetupInterruptSystem(&IntcInst);
+    if (status != XST_SUCCESS)
+    {
+        xil_printf("ERROR: Interrupt setup failed\r\n");
+        cleanup_platform();
+        return -1;
+    }
+
+    xil_printf("GIC setup complete\r\n\n");
+
+    MatrixAccel_SoftReset();
+    MatrixAccel_DisableInterrupt();
+
+    LoadDefaultMatrices(g_current_n);
+    ClearOutputBuffers(g_current_n);
+
+    PrintRegisters();
+    PrintMenu();
+
+    while (1)
+    {
+        xil_printf("Enter command: ");
+
+        do
+        {
+            cmd = inbyte();
+        } while ((cmd == '\r') || (cmd == '\n'));
+
+        xil_printf("%c\r\n", cmd);
+
+        switch (cmd)
+        {
+            case '1':
+            {
+                LoadDefaultMatrices(g_current_n);
+                ClearOutputBuffers(g_current_n);
+                xil_printf("Loaded default %dx%d matrices into software buffers.\r\n\r\n", g_current_n, g_current_n);
+                break;
+            }
+
+            case '2':
+            {
+                WriteMatricesToBram(g_current_n);
+                xil_printf("Wrote matrices A and B into BRAM.\r\n\r\n");
+                break;
+            }
+
+            case '3':
+            {
+                ComputeSoftwareReference(g_current_n);
+                xil_printf("Computed software reference for %dx%d matrix multiply.\r\n\r\n", g_current_n, g_current_n);
+                break;
+            }
+
+            case '4':
+            {
+                if (RunHardwarePolling(g_current_n) == 0)
+                {
+                    xil_printf("Polling run completed successfully.\r\n\r\n");
+                }
+                break;
+            }
+
+            case '5':
+            {
+                ReadMatrixCFromBram(g_current_n);
+                CompareHwAndSw(g_current_n);
+                xil_printf("\r\n");
+                break;
+            }
+
+            case '6':
+            {
+                PrintRegisters();
+                xil_printf("Interrupt Count = %d\r\n\r\n", g_interrupt_count);
+                break;
+            }
+
+            case '7':
+            {
+                PrintMatrix("A", g_matrix_a, g_current_n);
+                PrintMatrix("B", g_matrix_b, g_current_n);
+                PrintMatrix("C_hw", g_matrix_c_hw, g_current_n);
+                PrintMatrix("C_sw", g_matrix_c_sw, g_current_n);
+                break;
+            }
+
+            case '8':
+            {
+                FullMatrixTestPolling(g_current_n);
+                break;
+            }
+
+            case '9':
+            {
+                FullMatrixTestInterrupt(g_current_n);
+                break;
+            }
+
+            case 'a':
+            {
+                xil_printf("Soft resetting accelerator...\r\n");
+                MatrixAccel_SoftReset();
+                PrintRegisters();
+                xil_printf("\r\n");
+                break;
+            }
+
+            case 'b':
+            {
+                xil_printf("Disabling accelerator interrupt enable bit...\r\n");
+                MatrixAccel_DisableInterrupt();
+                PrintRegisters();
+                xil_printf("\r\n");
+                break;
+            }
+
+            case 'c':
+            {
+                xil_printf("Select matrix size: 4, 8, or 16\r\n");
+                xil_printf("Enter size command: ");
+
+                do
+                {
+                    cmd = inbyte();
+                } while ((cmd == '\r') || (cmd == '\n'));
+
+                xil_printf("%c\r\n", cmd);
+
+                if (cmd == '4')
+                {
+                    g_current_n = 4;
+                }
+                else if (cmd == '8')
+                {
+                    g_current_n = 8;
+                }
+                else if (cmd == 'g')
+                {
+                    g_current_n = 16;
+                }
+                else
+                {
+                    xil_printf("Invalid selection. Keeping current size = %d\r\n\r\n", g_current_n);
+                    break;
+                }
+
+                LoadDefaultMatrices(g_current_n);
+                ClearOutputBuffers(g_current_n);
+                xil_printf("Matrix size set to %d x %d\r\n\r\n", g_current_n, g_current_n);
+                break;
+            }
+
+            case 'd':
+            {
+                PrintBaseAddresses();
+                break;
+            }
+
+            case 'h':
+            {
+                PrintMenu();
+                break;
+            }
+
+            default:
+            {
+                xil_printf("Invalid command.\r\n\r\n");
+                break;
+            }
+        }
+    }
+
+    cleanup_platform();
+    return 0;
+}

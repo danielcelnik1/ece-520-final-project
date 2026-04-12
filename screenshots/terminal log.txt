@@ -1,0 +1,260 @@
+//log single MAC
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 2
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 63
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 63
+
+HW and SW results match.
+SW compute time : 0 us
+HW compute time : 1 us (63 cycles @ 50000000 Hz)
+Time difference : 1 us
+
+Enter command: c
+Enter new matrix size (2 to 16): 3
+Matrix size set to 3 x 3
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 3
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 193
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 193
+
+HW and SW results match.
+SW compute time : 2 us
+HW compute time : 3 us (193 cycles @ 50000000 Hz)
+Time difference : 1 us
+
+Enter command: c
+Enter new matrix size (2 to 16): 4
+Matrix size set to 4 x 4
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 4
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 437
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 437
+
+HW and SW results match.
+SW compute time : 4 us
+HW compute time : 8 us (437 cycles @ 50000000 Hz)
+Time difference : 4 us
+
+Enter command: c
+Enter new matrix size (2 to 16): 16
+Matrix size set to 16 x 16
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 5
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 25361
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 25361
+
+HW and SW results match.
+SW compute time : 235 us
+HW compute time : 507 us (25361 cycles @ 50000000 Hz)
+Time difference : 272 us
+
+Enter command: 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//After 2 MAC
+a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 4
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 39
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 39
+
+HW and SW results match.
+SW compute time : 0 us
+HW compute time : 0 us (39 cycles @ 50000000 Hz)
+Time difference : 0 us
+
+Enter command: c
+Enter new EVEN matrix size (2 to 16): 4
+Matrix size set to 4 x 4
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 5
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 245
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 245
+
+HW and SW results match.
+SW compute time : 4 us
+HW compute time : 4 us (245 cycles @ 50000000 Hz)
+Time difference : 0 us
+
+Enter command: c
+Enter new EVEN matrix size (2 to 16): 6
+Matrix size set to 6 x 6
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 6
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 763
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 763
+
+HW and SW results match.
+SW compute time : 13 us
+HW compute time : 15 us (763 cycles @ 50000000 Hz)
+Time difference : 2 us
+
+Enter command: c
+Enter new EVEN matrix size (2 to 16): 8
+Matrix size set to 8 x 8
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 7
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 1737
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 1737
+
+HW and SW results match.
+SW compute time : 30 us
+HW compute time : 34 us (1737 cycles @ 50000000 Hz)
+Time difference : 4 us
+
+Enter command: c
+Enter new EVEN matrix size (2 to 16): 16
+Matrix size set to 16 x 16
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 8
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 13073
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 13073
+
+HW and SW results match.
+SW compute time : 235 us
+HW compute time : 261 us (13073 cycles @ 50000000 Hz)
+Time difference : 26 us
+
+Enter command: 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//4 MAC
+a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 4
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 149
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 149
+
+HW and SW results match.
+SW compute time : 4 us
+HW compute time : 2 us (149 cycles @ 50000000 Hz)
+Time difference : 2 us
+
+Enter command: c
+Enter new matrix size (4, 8, 12, or 16): 8
+Matrix size set to 8 x 8
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 5
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 969
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 969
+
+HW and SW results match.
+SW compute time : 30 us
+HW compute time : 19 us (969 cycles @ 50000000 Hz)
+Time difference : 11 us
+
+Enter command: c
+Enter new matrix size (4, 8, 12, or 16): 12
+Matrix size set to 12 x 12
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 6
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 3037
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 3037
+
+HW and SW results match.
+SW compute time : 101 us
+HW compute time : 60 us (3037 cycles @ 50000000 Hz)
+Time difference : 41 us
+
+Enter command: c
+Enter new matrix size (4, 8, 12, or 16): 16
+Matrix size set to 16 x 16
+
+Enter command: a
+
+=== Full Matrix Test (Interrupt Only) ===
+Running hardware accelerator using interrupt...
+ISR: Matrix accelerator interrupt received. Count = 7
+ISR: STATUS = 0x00000002, CYCLE_COUNT = 6929
+
+Interrupt-driven hardware run complete. CYCLE_COUNT = 6929
+
+HW and SW results match.
+SW compute time : 235 us
+HW compute time : 138 us (6929 cycles @ 50000000 Hz)
+Time difference : 97 us
+
+Enter command: 

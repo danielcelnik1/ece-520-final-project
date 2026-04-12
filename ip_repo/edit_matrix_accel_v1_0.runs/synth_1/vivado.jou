@@ -1,0 +1,14 @@
+#-----------------------------------------------------------
+# Vivado v2023.1 (64-bit)
+# SW Build 3865809 on Sun May  7 15:05:29 MDT 2023
+# IP Build 3864474 on Sun May  7 20:36:21 MDT 2023
+# SharedData Build 3865790 on Sun May 07 13:33:03 MDT 2023
+# Start of session at: Mon Apr  6 21:24:43 2026
+# Process ID: 1672
+# Current directory: c:/Users/djdan/OneDrive/Documents/CSUN/520a/Matrix/ip_repo/edit_matrix_accel_v1_0.runs/synth_1
+# Command line: vivado.exe -log matrix_accel_v1_0.vds -product Vivado -mode batch -messageDb vivado.pb -notrace -source matrix_accel_v1_0.tcl
+# Log file: c:/Users/djdan/OneDrive/Documents/CSUN/520a/Matrix/ip_repo/edit_matrix_accel_v1_0.runs/synth_1/matrix_accel_v1_0.vds
+# Journal file: c:/Users/djdan/OneDrive/Documents/CSUN/520a/Matrix/ip_repo/edit_matrix_accel_v1_0.runs/synth_1\vivado.jou
+# Running On: GaymingLaptop, OS: Windows, CPU Frequency: 3294 MHz, CPU Physical cores: 16, Host memory: 24943 MB
+#-----------------------------------------------------------
+source matrix_accel_v1_0.tcl -notrace
